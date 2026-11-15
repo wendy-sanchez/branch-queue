@@ -1,174 +1,137 @@
-# Branch Queue — Gestor de Cola por Servicio
+# Branch Queue — Service-Based Queue Manager
 
-Sistema de gestión de colas para sucursales bancarias **Banco Meridional**.
+A Python command-line application that manages customer waiting queues for a fictional bank, using independent FIFO queues for each service type.
 
-Cuando un cliente llega a la sucursal, toma un ticket numerado etiquetado con un
-tipo de servicio: **depósito**, **retiro** o **gestión de cuenta**. Cada agente
-está asignado a un único tipo de servicio y trabaja de forma independiente:
-cuando queda libre, llama al siguiente cliente de *su* cola, sin tener que
-recorrer toda la sala de espera.
+Customers receive sequentially numbered tickets when they arrive. Each bank agent handles a specific service and calls the next customer from their own queue, without having to search through customers waiting for other services.
 
-Este proyecto implementa un gestor de colas en terminal que modela ese sistema
-antes de integrarse en los quioscos táctiles de la sucursal.
+This project was developed as part of an educational assignment at **4Geeks Academy**.
 
----
+## Features
 
-## Características
+- **Ticket issuance:** Register customers and assign them to a service queue.
+- **Global ticket numbering:** Generate unique, sequential ticket numbers across all services.
+- **Independent service queues:** Maintain separate queues for deposits, withdrawals, and account management.
+- **FIFO scheduling:** Preserve arrival order within each service.
+- **Next customer lookup:** Inspect the next ticket without removing it from the queue.
+- **Customer calling:** Retrieve and remove the next waiting ticket for a selected service.
+- **Waiting list:** Display pending customers grouped by service.
+- **Queue statistics:** Count waiting customers by service and calculate the total.
+- **Input validation:** Handle invalid service types and empty queues with descriptive errors.
+- **Interactive CLI:** Manage the system through a terminal menu in Spanish.
 
-- **Cola independiente por tipo de servicio** (`collections.deque`): `call_next`
-  es O(1), instantáneo sin importar cuántas personas esperen para otros servicios.
-- **Tickets globalmente secuenciales**: el número de ticket es único entre todos
-  los servicios (contador global desde 1).
-- **Orden estricto de llegada (FIFO)** dentro de cada cola de servicio.
-- **Cinco operaciones de cola**: emisión, llamada, peek, listado y estadísticas.
-- **Casos borde gestionados**: cola vacía y tipo de servicio inválido no rompen
-  el programa.
-- **CLI interactiva** con menú en bucle en español.
-- **Solo biblioteca estándar de Python** — sin dependencias externas.
+## How It Works
 
----
+The application uses a dictionary containing three independent `collections.deque` instances:
 
-## Requisitos
+```python
+self._queues = {
+    st: deque() for st in VALID_SERVICE_TYPES
+}
+```
 
-- Python 3.8+ (fechas con zona horaria UTC, `frozenset`, `dataclasses`).
-- No requiere instalar ningún paquete externo.
+Each queue corresponds to one of the supported services:
 
----
+- `deposito` — Deposits
+- `retiro` — Withdrawals
+- `gestion_cuenta` — Account management
 
-## Cómo ejecutar
+Tickets receive a global sequential number, regardless of the service queue to which they belong.
 
-### CLI interactiva
+### Time Complexity
 
-Desde la raíz del proyecto:
+| Operation | Time complexity |
+|---|---:|
+| Issue ticket | O(1) |
+| Call next customer | O(1) |
+| Peek next customer | O(1) |
+| List waiting customers | O(n) |
+| Queue statistics | O(1) |
+
+Because each service has its own queue, an agent can retrieve the next customer without traversing tickets belonging to other services.
+
+## Requirements
+
+- Python 3.8 or newer.
+- No external dependencies.
+
+The application uses Python standard-library modules, including `collections.deque`, `dataclasses`, `datetime`, and `typing`.
+
+## Getting Started
+
+Run the application from the project directory:
 
 ```bash
 python3 branch_queue.py
 ```
 
-Se abre un menú con las siguientes opciones:
+On Windows, you can also use:
 
-```
-========================================================
-  BANCO MERIDIONAL — Gestor de Cola por Servicio
-========================================================
-
-    1. Emitir un nuevo ticket
-    2. Llamar al siguiente cliente
-    3. Ver la lista de espera
-    4. Ver estadísticas de la cola
-    5. Salir
-
-  Seleccione una opción [1-5]:
+```bash
+python branch_queue.py
 ```
 
-### Uso programático
+## Interactive Menu
+
+The terminal interface provides five options:
+
+1. Issue a new ticket.
+2. Call the next customer.
+3. View the waiting list.
+4. View queue statistics.
+5. Exit the application.
+
+## Programmatic Usage
+
+The queue manager can also be imported and used directly:
 
 ```python
 from branch_queue import BranchQueue, QueueError
 
-bq = BranchQueue()
+queue = BranchQueue()
 
-# Emitir tickets (los números son globalmente secuenciales)
-t1 = bq.issue_ticket("Alice", "deposito")       # #1
-t2 = bq.issue_ticket("Bob", "retiro")           # #2
-t3 = bq.issue_ticket("Carlos", "deposito")      # #3
+# Issue tickets
+ticket = queue.issue_ticket("Alice", "deposito")
 
-# Ver quién sigue sin retirarlo
-bq.peek_next("deposito")                        # #1 Alice
+# Inspect the next customer
+next_ticket = queue.peek_next("deposito")
 
-# Llamar al siguiente cliente de un servicio
-siguiente = bq.call_next("deposito")            # #1 Alice
+# Call the next customer
+served = queue.call_next("deposito")
 
-# Listar la espera agrupada por servicio
-bq.list_waiting()
-
-# Estadísticas
-bq.stats()                                      # {'deposito': 1, 'retiro': 1,
-                                                #  'gestion_cuenta': 0, 'total': 2}
-
-# Los errores son descriptivos y no rompen el flujo
-try:
-    bq.call_next("gestion_cuenta")              # cola vacía
-except QueueError as e:
-    print(e)                                    # No hay clientes esperando para 'gestion_cuenta'.
+# Get queue statistics
+statistics = queue.stats()
 ```
 
----
+The `QueueError` exception handles invalid service types and attempts to call customers from empty queues.
 
-## Referencia de la API
+## Project Structure
 
-### `Ticket`
-
-Dataclass que representa un ticket emitido.
-
-| Campo | Tipo | Descripción |
-|---|---|---|
-| `number` | `int` | Número de ticket, global y secuencial. |
-| `client_name` | `str` | Nombre del cliente. |
-| `service_type` | `str` | `"deposito"`, `"retiro"` o `"gestion_cuenta"`. |
-| `issued_at` | `datetime` | Momento de emisión (UTC). |
-
-### `BranchQueue`
-
-| Método | Firma | Descripción |
-|---|---|---|
-| `issue_ticket` | `(client_name: str, service_type: str) -> Ticket` | Crea, numera y encola un ticket. Lanza `QueueError` si el tipo es inválido. |
-| `call_next` | `(service_type: str) -> Ticket` | Desencola y devuelve el siguiente cliente del servicio. **O(1)**. Lanza `QueueError` si el tipo es inválido o la cola está vacía. |
-| `peek_next` | `(service_type: str) -> Optional[Ticket]` | Devuelve el siguiente cliente **sin retirarlo**; `None` si la cola está vacía. |
-| `list_waiting` | `() -> Dict[str, List[Ticket]]` | Devuelve los tickets en espera agrupados por servicio, en orden FIFO. Devuelve una copia. |
-| `stats` | `() -> Dict[str, int]` | Número de clientes en espera por servicio, más la clave `"total"`. |
-
-### `QueueError`
-
-Excepción lanzada ante errores de uso: tipo de servicio inválido o `call_next`
-sobre una cola vacía.
-
----
-
-## Estructura del proyecto
-
-```
-.
-├── CONTEXT.md        # Contexto de negocio y requisitos (Banco Meridional)
-├── DESIGN.md         # Notas de diseño y análisis de complejidad/concurrencia
-├── README.md         # Este documento
-└── branch_queue.py   # Implementación: modelo de datos, cola y CLI
+```text
+branch-queue/
+├── CONTEXT.md        # Business context and requirements
+├── DESIGN.md         # Data structure and concurrency analysis
+├── README.md         # Project documentation
+└── branch_queue.py   # Ticket model, queue manager, and CLI
 ```
 
----
+## Design Considerations
 
-## Notas de diseño
+The `DESIGN.md` document explains the decision to use one deque per service instead of a single shared queue.
 
-El análisis detallado, la justificación de la estructura por servicio y el
-escenario de concurrencia de `call_next` se documentan en
-[`DESIGN.md`](DESIGN.md). Resumen:
+It also discusses a concurrency scenario in which two agents attempt to call the next customer from the same service queue simultaneously.
 
-- **¿Por qué una cola por servicio y no una única lista?** Con una sola lista
-  compartida, cada agente tendría que recorrerla entera (O(n)) para encontrar a
-  su primer cliente. Con un `deque` por servicio, `call_next` es `popleft()`
-  sobre la cola del propio agente: **O(1)** e independiente del tamaño total de
-  la sucursal.
-- **¿Qué pasa si dos agentes llaman a `call_next` a la vez?** La mutación
-  crítica es el **desencolado atómico** (`popleft()`). En este CLI secuencial el
-  GIL de Python lo garantiza; en un entorno multihilo real se protegería con un
-  `threading.Lock`. Las colas separadas, además, eliminan la contención entre
-  agentes de distintos servicios.
+The current application is sequential and does not implement thread synchronization. A `threading.Lock` is discussed as a possible solution for a future multithreaded implementation.
 
----
+## Scope and Limitations
 
-## Verificación
+This project is an educational queue-management simulation, not a production banking system.
 
-El módulo compila sin warnings:
-
-```bash
-python3 -W error -m py_compile branch_queue.py
-```
-
-Los casos de uso y casos borde pueden verificarse de forma programática
-importando las clases, como se muestra en la sección *Uso programático*.
+- Customer tickets are stored in memory.
+- No database or persistent storage is implemented.
+- There is no graphical interface or integration with physical ticket kiosks.
+- The application does not implement multiple agents or concurrent processing.
+- Banco Meridional is a fictional organization used for the assignment.
 
 ---
 
-## Licencia
-
-Proyecto educativo de ejemplo. Banco Meridional es un caso ficticio.
+**Developer Wendy Sanchez**
